@@ -50,20 +50,19 @@ export async function GET(request: NextRequest) {
     try {
         try {
             if (updateType === UpdateType.NORMAL_UPDATE) {
-                await putUpdateInResponseAsync(updateBundlePath, runtimeVersion, platform, protocolVersion);
+                return await putUpdateInResponseAsync(updateBundlePath, runtimeVersion, platform, protocolVersion);
             } else if (updateType === UpdateType.ROLLBACK) {
-                await putRollBackInResponseAsync(updateBundlePath, protocolVersion);
+                return await putRollBackInResponseAsync(updateBundlePath, protocolVersion);
             }
         } catch (maybeNoUpdateAvailableError) {
             if (maybeNoUpdateAvailableError instanceof NoUpdateAvailableError) {
-                await putNoUpdateAvailableInResponseAsync(protocolVersion);
-                return;
+                return await putNoUpdateAvailableInResponseAsync(protocolVersion);
             }
             throw maybeNoUpdateAvailableError;
         }
     } catch (error) {
         console.error(error);
-        NextResponse.json({ error }, { status: 404 });
+        return NextResponse.json({ error }, { status: 404 });
     }
 }
 

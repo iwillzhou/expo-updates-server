@@ -5,10 +5,10 @@ do
     esac
 done
 
-cd ../../test-app
+cd ../app-init
 npx expo export
-cd ../custom-expo-updates-server/expo-updates-server
+cd ../expo-updates-server
 rm -rf updates/$directory/
-cp -r ../../test-app/dist/ updates/$directory
+cp -r ../app-init/dist/ updates/$directory
 
-npx expo config ../../test-app --json > updates/$directory/expoConfig.json
+npx expo config ../app-init --json > updates/$directory/expoConfig.json
