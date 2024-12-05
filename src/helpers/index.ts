@@ -116,7 +116,7 @@ export async function getMetadataAsync({
         const metadataPath = `${updateBundlePath}/metadata.json`;
         const { uploadedAt } = await head(metadataPath);
         const metadataJson = await fetchJSONFromVercelBlob(metadataPath);
-        const updateMetadataBuffer = await fetchBufferFromVercelBlob(metadataJson);
+        const updateMetadataBuffer = await fetchBufferFromVercelBlob(metadataPath);
 
         return {
             metadataJson,
