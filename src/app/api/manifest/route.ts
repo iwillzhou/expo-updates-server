@@ -1,15 +1,11 @@
-import fs from 'fs/promises';
 import FormData from 'form-data';
+import { list } from '@vercel/blob';
 import { headers } from 'next/headers';
-import { serializeDictionary } from 'structured-headers';
 import { NextRequest, NextResponse } from 'next/server';
 import {
     getAssetMetadataAsync,
     getMetadataAsync,
     convertSHA256HashToUUID,
-    convertToDictionaryItemsRepresentation,
-    signRSASHA256,
-    getPrivateKeyAsync,
     getExpoConfigAsync,
     getLatestUpdateBundlePathForRuntimeVersionAsync,
     createRollBackDirectiveAsync,
@@ -20,6 +16,16 @@ import {
 export async function GET(request: NextRequest) {
     const headersList = await headers();
     const searchParams = request.nextUrl.searchParams;
+
+    const projectId = searchParams.get('id');
+    if (!projectId || typeof projectId !== 'string') {
+        return NextResponse.json({ error: 'No id provided.' }, { status: 400 });
+    }
+
+    const channel = searchParams.get('channel') || '';
+    if (!['staging', 'production'].includes(channel)) {
+        return NextResponse.json({ error: 'No channel provided.' }, { status: 400 });
+    }
 
     const protocolVersionMaybeArray = headersList.get('expo-protocol-version');
     if (protocolVersionMaybeArray && Array.isArray(protocolVersionMaybeArray)) {
@@ -40,7 +46,12 @@ export async function GET(request: NextRequest) {
 
     let updateBundlePath: string;
     try {
-        updateBundlePath = await getLatestUpdateBundlePathForRuntimeVersionAsync(runtimeVersion);
+        updateBundlePath = await getLatestUpdateBundlePathForRuntimeVersionAsync(
+            projectId,
+            channel,
+            platform,
+            runtimeVersion
+        );
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 404 });
     }
@@ -71,8 +82,10 @@ enum UpdateType {
     ROLLBACK
 }
 
+// TODO: 待测试
 async function getTypeOfUpdateAsync(updateBundlePath: string): Promise<UpdateType> {
-    const directoryContents = await fs.readdir(updateBundlePath);
+    const { blobs } = await list({ prefix: updateBundlePath });
+    const directoryContents = blobs.map(blob => blob.pathname);
     return directoryContents.includes('rollback') ? UpdateType.ROLLBACK : UpdateType.NORMAL_UPDATE;
 }
 
@@ -131,24 +144,24 @@ async function putUpdateInResponseAsync(
         }
     };
 
-    let signature = null;
-    const expectSignatureHeader = headersList.get('expo-expect-signature');
-    if (expectSignatureHeader) {
-        const privateKey = await getPrivateKeyAsync();
-        if (!privateKey) {
-            return NextResponse.json(
-                { error: 'Code signing requested but no key supplied when starting server.' },
-                { status: 400 }
-            );
-        }
-        const manifestString = JSON.stringify(manifest);
-        const hashSignature = signRSASHA256(manifestString, privateKey);
-        const dictionary = convertToDictionaryItemsRepresentation({
-            sig: hashSignature,
-            keyid: 'main'
-        });
-        signature = serializeDictionary(dictionary);
-    }
+    const signature = null;
+    // const expectSignatureHeader = headersList.get('expo-expect-signature');
+    // if (expectSignatureHeader) {
+    //     const privateKey = await getPrivateKeyAsync();
+    //     if (!privateKey) {
+    //         return NextResponse.json(
+    //             { error: 'Code signing requested but no key supplied when starting server.' },
+    //             { status: 400 }
+    //         );
+    //     }
+    //     const manifestString = JSON.stringify(manifest);
+    //     const hashSignature = signRSASHA256(manifestString, privateKey);
+    //     const dictionary = convertToDictionaryItemsRepresentation({
+    //         sig: hashSignature,
+    //         keyid: 'main'
+    //     });
+    //     signature = serializeDictionary(dictionary);
+    // }
 
     const assetRequestHeaders: { [key: string]: object } = {};
     [...manifest.assets, manifest.launchAsset].forEach(asset => {
@@ -199,24 +212,24 @@ async function putRollBackInResponseAsync(updateBundlePath: string, protocolVers
 
     const directive = await createRollBackDirectiveAsync(updateBundlePath);
 
-    let signature = null;
-    const expectSignatureHeader = headersList.get('expo-expect-signature');
-    if (expectSignatureHeader) {
-        const privateKey = await getPrivateKeyAsync();
-        if (!privateKey) {
-            return NextResponse.json(
-                { error: 'Code signing requested but no key supplied when starting server.' },
-                { status: 400 }
-            );
-        }
-        const directiveString = JSON.stringify(directive);
-        const hashSignature = signRSASHA256(directiveString, privateKey);
-        const dictionary = convertToDictionaryItemsRepresentation({
-            sig: hashSignature,
-            keyid: 'main'
-        });
-        signature = serializeDictionary(dictionary);
-    }
+    const signature = null;
+    // const expectSignatureHeader = headersList.get('expo-expect-signature');
+    // if (expectSignatureHeader) {
+    //     const privateKey = await getPrivateKeyAsync();
+    //     if (!privateKey) {
+    //         return NextResponse.json(
+    //             { error: 'Code signing requested but no key supplied when starting server.' },
+    //             { status: 400 }
+    //         );
+    //     }
+    //     const directiveString = JSON.stringify(directive);
+    //     const hashSignature = signRSASHA256(directiveString, privateKey);
+    //     const dictionary = convertToDictionaryItemsRepresentation({
+    //         sig: hashSignature,
+    //         keyid: 'main'
+    //     });
+    //     signature = serializeDictionary(dictionary);
+    // }
 
     const form = new FormData();
     form.append('directive', JSON.stringify(directive), {
@@ -243,27 +256,26 @@ async function putNoUpdateAvailableInResponseAsync(protocolVersion: number): Pro
         throw new Error('NoUpdateAvailable directive not available in protocol version 0');
     }
 
-    const headersList = await headers();
     const directive = await createNoUpdateAvailableDirectiveAsync();
 
-    let signature = null;
-    const expectSignatureHeader = headersList.get('expo-expect-signature');
-    if (expectSignatureHeader) {
-        const privateKey = await getPrivateKeyAsync();
-        if (!privateKey) {
-            return NextResponse.json(
-                { error: 'Code signing requested but no key supplied when starting server.' },
-                { status: 400 }
-            );
-        }
-        const directiveString = JSON.stringify(directive);
-        const hashSignature = signRSASHA256(directiveString, privateKey);
-        const dictionary = convertToDictionaryItemsRepresentation({
-            sig: hashSignature,
-            keyid: 'main'
-        });
-        signature = serializeDictionary(dictionary);
-    }
+    const signature = null;
+    // const expectSignatureHeader = headersList.get('expo-expect-signature');
+    // if (expectSignatureHeader) {
+    //     const privateKey = await getPrivateKeyAsync();
+    //     if (!privateKey) {
+    //         return NextResponse.json(
+    //             { error: 'Code signing requested but no key supplied when starting server.' },
+    //             { status: 400 }
+    //         );
+    //     }
+    //     const directiveString = JSON.stringify(directive);
+    //     const hashSignature = signRSASHA256(directiveString, privateKey);
+    //     const dictionary = convertToDictionaryItemsRepresentation({
+    //         sig: hashSignature,
+    //         keyid: 'main'
+    //     });
+    //     signature = serializeDictionary(dictionary);
+    // }
 
     const form = new FormData();
     form.append('directive', JSON.stringify(directive), {

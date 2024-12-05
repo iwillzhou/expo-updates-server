@@ -1,9 +1,10 @@
-import fsSync from 'fs';
 import mime from 'mime';
 import path from 'path';
 import fs from 'fs/promises';
+import { list, head } from '@vercel/blob';
 import { Dictionary } from 'structured-headers';
 import crypto, { BinaryToTextEncoding } from 'crypto';
+import { fetchBufferFromVercelBlob, fetchJSONFromVercelBlob } from '@/helpers/vercel-blob';
 
 export class NoUpdateAvailableError extends Error {}
 
@@ -30,34 +31,22 @@ export function signRSASHA256(data: string, privateKey: string) {
     return sign.sign(privateKey, 'base64');
 }
 
-export async function getPrivateKeyAsync() {
-    const privateKeyPath = process.env.PRIVATE_KEY_PATH;
-    if (!privateKeyPath) {
-        return null;
-    }
-
-    const pemBuffer = await fs.readFile(path.resolve(privateKeyPath));
-    return pemBuffer.toString('utf8');
-}
-
-export async function getLatestUpdateBundlePathForRuntimeVersionAsync(runtimeVersion: string) {
-    const updatesDirectoryForRuntimeVersion = `updates/${runtimeVersion}`;
-    if (!fsSync.existsSync(updatesDirectoryForRuntimeVersion)) {
+export async function getLatestUpdateBundlePathForRuntimeVersionAsync(
+    projectId: string,
+    channel: string,
+    platform: string,
+    runtimeVersion: string
+) {
+    const prefix = `${projectId}/${channel}/${platform}/${runtimeVersion}/`;
+    const { folders } = await list({ mode: 'folded', prefix });
+    if (folders.length === 0) {
         throw new Error('Unsupported runtime version');
     }
-
-    const filesInUpdatesDirectory = await fs.readdir(updatesDirectoryForRuntimeVersion);
-    const directoriesInUpdatesDirectory = (
-        await Promise.all(
-            filesInUpdatesDirectory.map(async file => {
-                const fileStat = await fs.stat(path.join(updatesDirectoryForRuntimeVersion, file));
-                return fileStat.isDirectory() ? file : null;
-            })
-        )
-    )
+    const directoriesInUpdatesDirectory = folders
+        .map(dir => dir.split('/').findLast(i => i !== ''))
         .filter(truthy)
         .sort((a, b) => parseInt(b, 10) - parseInt(a, 10));
-    return path.join(updatesDirectoryForRuntimeVersion, directoriesInUpdatesDirectory[0]);
+    return path.join(prefix, directoriesInUpdatesDirectory[0]);
 }
 
 type GetAssetMetadataArg =
@@ -80,7 +69,7 @@ type GetAssetMetadataArg =
 
 export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
     const assetFilePath = `${arg.updateBundlePath}/${arg.filePath}`;
-    const asset = await fs.readFile(path.resolve(assetFilePath), null);
+    const asset = await fetchBufferFromVercelBlob(assetFilePath);
     const assetHash = getBase64URLEncoding(createHash(asset, 'sha256', 'base64'));
     const key = createHash(asset, 'md5', 'hex');
     const keyExtensionSuffix = arg.isLaunchAsset ? 'bundle' : arg.ext;
@@ -125,13 +114,13 @@ export async function getMetadataAsync({
 }) {
     try {
         const metadataPath = `${updateBundlePath}/metadata.json`;
-        const updateMetadataBuffer = await fs.readFile(path.resolve(metadataPath), null);
-        const metadataJson = JSON.parse(updateMetadataBuffer.toString('utf-8'));
-        const metadataStat = await fs.stat(metadataPath);
+        const { uploadedAt } = await head(metadataPath);
+        const metadataJson = await fetchJSONFromVercelBlob(metadataPath);
+        const updateMetadataBuffer = await fetchBufferFromVercelBlob(metadataJson);
 
         return {
             metadataJson,
-            createdAt: new Date(metadataStat.birthtime).toISOString(),
+            createdAt: new Date(uploadedAt).toISOString(),
             id: createHash(updateMetadataBuffer, 'sha256', 'hex')
         };
     } catch (error) {
@@ -154,8 +143,7 @@ export async function getExpoConfigAsync({
 }): Promise<any> {
     try {
         const expoConfigPath = `${updateBundlePath}/expoConfig.json`;
-        const expoConfigBuffer = await fs.readFile(path.resolve(expoConfigPath), null);
-        const expoConfigJson = JSON.parse(expoConfigBuffer.toString('utf-8'));
+        const expoConfigJson = await fetchJSONFromVercelBlob(expoConfigPath);
         return expoConfigJson;
     } catch (error) {
         throw new Error(`No expo config json found with runtime version: ${runtimeVersion}. Error: ${error}`);

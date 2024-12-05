@@ -1,9 +1,8 @@
-import fs from 'fs';
 import mime from 'mime';
-import path from 'path';
 import nullthrows from 'nullthrows';
-import fsPromises from 'fs/promises';
+import { list } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchBufferFromVercelBlob } from '@/helpers/vercel-blob';
 import { getLatestUpdateBundlePathForRuntimeVersionAsync, getMetadataAsync } from '@/helpers';
 
 export async function GET(request: NextRequest) {
@@ -11,6 +10,16 @@ export async function GET(request: NextRequest) {
     const assetName = searchParams.get('asset');
     const platform = searchParams.get('platform');
     const runtimeVersion = searchParams.get('runtimeVersion');
+
+    const projectId = searchParams.get('id');
+    if (!projectId || typeof projectId !== 'string') {
+        return NextResponse.json({ error: 'No id provided.' }, { status: 400 });
+    }
+
+    const channel = searchParams.get('channel') || '';
+    if (['staging', 'production'].includes(channel)) {
+        return NextResponse.json({ error: 'No channel provided.' }, { status: 400 });
+    }
 
     if (!assetName || typeof assetName !== 'string') {
         return NextResponse.json({ error: 'No asset name provided.' }, { status: 400 });
@@ -26,7 +35,12 @@ export async function GET(request: NextRequest) {
 
     let updateBundlePath: string;
     try {
-        updateBundlePath = await getLatestUpdateBundlePathForRuntimeVersionAsync(runtimeVersion);
+        updateBundlePath = await getLatestUpdateBundlePathForRuntimeVersionAsync(
+            projectId,
+            channel,
+            platform,
+            runtimeVersion
+        );
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 404 });
     }
@@ -36,18 +50,19 @@ export async function GET(request: NextRequest) {
         runtimeVersion
     });
 
-    const assetPath = path.resolve(assetName);
+    // const assetPath = path.resolve(assetName);
     const assetMetadata = metadataJson.fileMetadata[platform].assets.find(
         (asset: any) => asset.path === assetName.replace(`${updateBundlePath}/`, '')
     );
     const isLaunchAsset = metadataJson.fileMetadata[platform].bundle === assetName.replace(`${updateBundlePath}/`, '');
 
-    if (!fs.existsSync(assetPath)) {
+    const { blobs } = await list({ prefix: updateBundlePath });
+    if (!blobs.find(blob => blob.pathname === assetName)) {
         return NextResponse.json({ error: `Asset "${assetName}" does not exist.` }, { status: 404 });
     }
 
     try {
-        const asset = await fsPromises.readFile(assetPath, null);
+        const asset = await fetchBufferFromVercelBlob(assetName);
         return new NextResponse(asset, {
             status: 200,
             headers: {
