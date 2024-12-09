@@ -1,6 +1,5 @@
 import mime from 'mime';
 import path from 'path';
-import fs from 'fs/promises';
 import { list, head } from '@vercel/blob';
 import { Dictionary } from 'structured-headers';
 import crypto, { BinaryToTextEncoding } from 'crypto';
@@ -91,11 +90,11 @@ export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
 export async function createRollBackDirectiveAsync(updateBundlePath: string) {
     try {
         const rollbackFilePath = `${updateBundlePath}/rollback`;
-        const rollbackFileStat = await fs.stat(rollbackFilePath);
+        const { uploadedAt } = await head(rollbackFilePath);
         return {
             type: 'rollBackToEmbedded',
             parameters: {
-                commitTime: new Date(rollbackFileStat.birthtime).toISOString()
+                commitTime: new Date(uploadedAt).toISOString()
             }
         };
     } catch (error) {
