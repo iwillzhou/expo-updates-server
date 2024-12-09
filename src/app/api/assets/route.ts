@@ -7,9 +7,6 @@ import { getLatestUpdateBundlePathForRuntimeVersionAsync, getMetadataAsync } fro
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
-    const assetName = searchParams.get('asset');
-    const platform = searchParams.get('platform');
-    const runtimeVersion = searchParams.get('runtimeVersion');
 
     const projectId = searchParams.get('id');
     if (!projectId || typeof projectId !== 'string') {
@@ -17,18 +14,21 @@ export async function GET(request: NextRequest) {
     }
 
     const channel = searchParams.get('channel') || '';
-    if (['staging', 'production'].includes(channel)) {
+    if (!['staging', 'production'].includes(channel)) {
         return NextResponse.json({ error: 'No channel provided.' }, { status: 400 });
     }
 
+    const assetName = searchParams.get('asset');
     if (!assetName || typeof assetName !== 'string') {
         return NextResponse.json({ error: 'No asset name provided.' }, { status: 400 });
     }
 
+    const platform = searchParams.get('platform');
     if (platform !== 'ios' && platform !== 'android') {
         return NextResponse.json({ error: 'No platform provided. Expected "ios" or "android".' }, { status: 400 });
     }
 
+    const runtimeVersion = searchParams.get('runtimeVersion');
     if (!runtimeVersion || typeof runtimeVersion !== 'string') {
         return NextResponse.json({ error: 'No runtimeVersion provided.' }, { status: 400 });
     }

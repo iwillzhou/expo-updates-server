@@ -61,7 +61,14 @@ export async function GET(request: NextRequest) {
     try {
         try {
             if (updateType === UpdateType.NORMAL_UPDATE) {
-                return await putUpdateInResponseAsync(updateBundlePath, runtimeVersion, platform, protocolVersion);
+                return await putUpdateInResponseAsync(
+                    updateBundlePath,
+                    runtimeVersion,
+                    platform,
+                    protocolVersion,
+                    projectId,
+                    channel
+                );
             } else if (updateType === UpdateType.ROLLBACK) {
                 return await putRollBackInResponseAsync(updateBundlePath, protocolVersion);
             }
@@ -93,7 +100,9 @@ async function putUpdateInResponseAsync(
     updateBundlePath: string,
     runtimeVersion: string,
     platform: string,
-    protocolVersion: number
+    protocolVersion: number,
+    projectId: string,
+    channel: string
 ): Promise<NextResponse> {
     const headersList = await headers();
 
@@ -121,6 +130,8 @@ async function putUpdateInResponseAsync(
         assets: await Promise.all(
             (platformSpecificMetadata.assets as any[]).map((asset: any) =>
                 getAssetMetadataAsync({
+                    id: projectId,
+                    channel,
                     updateBundlePath,
                     filePath: asset.path,
                     ext: asset.ext,
@@ -131,6 +142,8 @@ async function putUpdateInResponseAsync(
             )
         ),
         launchAsset: await getAssetMetadataAsync({
+            id: projectId,
+            channel,
             updateBundlePath,
             filePath: platformSpecificMetadata.bundle,
             isLaunchAsset: true,

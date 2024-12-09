@@ -57,6 +57,8 @@ type GetAssetMetadataArg =
           isLaunchAsset: true;
           runtimeVersion: string;
           platform: string;
+          id: string;
+          channel: string;
       }
     | {
           updateBundlePath: string;
@@ -65,6 +67,8 @@ type GetAssetMetadataArg =
           isLaunchAsset: false;
           runtimeVersion: string;
           platform: string;
+          id: string;
+          channel: string;
       };
 
 export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
@@ -80,7 +84,7 @@ export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
         key,
         fileExtension: `.${keyExtensionSuffix}`,
         contentType,
-        url: `${process.env.HOSTNAME}/api/assets?asset=${assetFilePath}&runtimeVersion=${arg.runtimeVersion}&platform=${arg.platform}`
+        url: `${process.env.HOSTNAME}/api/assets?asset=${assetFilePath}&runtimeVersion=${arg.runtimeVersion}&platform=${arg.platform}&id=${arg.id}&channel=${arg.channel}`
     };
 }
 
