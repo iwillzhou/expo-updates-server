@@ -6,6 +6,9 @@ import { put } from '@vercel/blob';
 import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
+// vercel 唯一可写的文件夹是 /tmp
+const tmpDir = '/tmp';
+
 export async function POST(request: NextRequest) {
     const headersList = await headers();
 
@@ -29,12 +32,12 @@ export async function POST(request: NextRequest) {
 
     try {
         // 保存上传的文件到本地
-        const filePath = path.resolve('./', 'updates.tar.gz');
+        const filePath = path.resolve(tmpDir, 'updates.tar.gz');
         const buffer = await file.arrayBuffer();
         fs.writeFileSync(filePath, Buffer.from(buffer));
 
         // 确保解压目录存在
-        const outputDir = path.resolve('./', 'output'); // 解压目标文件夹
+        const outputDir = path.resolve(tmpDir, 'output'); // 解压目标文件夹
         fs.mkdirSync(outputDir, { recursive: true });
 
         // 解压 tar.gz 文件
@@ -71,6 +74,10 @@ export async function POST(request: NextRequest) {
 
         // 遍历 dist 目录中的所有文件和文件夹
         await traverseDir(distDir, '', token, updateBundlePath);
+
+        // 删除临时文件和目录
+        fs.rmSync(filePath);
+        fs.rmSync(outputDir, { recursive: true, force: true });
 
         return NextResponse.json({ error: 'File uploaded and extracted successfully' }, { status: 200 });
     } catch (err) {

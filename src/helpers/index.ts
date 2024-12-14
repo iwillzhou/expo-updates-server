@@ -71,7 +71,7 @@ type GetAssetMetadataArg =
       };
 
 export async function getAssetMetadataAsync(arg: GetAssetMetadataArg) {
-    const assetFilePath = `${arg.updateBundlePath}/${arg.filePath}`;
+    const assetFilePath = `${arg.filePath}`;
     const asset = await fetchBufferFromVercelBlob(assetFilePath);
     const assetHash = getBase64URLEncoding(createHash(asset, 'sha256', 'base64'));
     const key = createHash(asset, 'md5', 'hex');
