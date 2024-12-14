@@ -50,13 +50,10 @@ export async function GET(request: NextRequest) {
         runtimeVersion
     });
 
-    // const assetPath = path.resolve(assetName);
-    const assetMetadata = metadataJson.fileMetadata[platform].assets.find(
-        (asset: any) => asset.path === assetName.replace(`${updateBundlePath}/`, '')
-    );
-    const isLaunchAsset = metadataJson.fileMetadata[platform].bundle === assetName.replace(`${updateBundlePath}/`, '');
+    const assetMetadata = metadataJson.fileMetadata[platform].assets.find((asset: any) => asset.path === assetName);
+    const isLaunchAsset = metadataJson.fileMetadata[platform].bundle === assetName;
 
-    const { blobs } = await list({ prefix: updateBundlePath });
+    const { blobs } = await list();
     if (!blobs.find(blob => blob.pathname === assetName)) {
         return NextResponse.json({ error: `Asset "${assetName}" does not exist.` }, { status: 404 });
     }

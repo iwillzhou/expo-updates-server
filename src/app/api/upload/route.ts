@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         fs.rmSync(filePath);
         fs.rmSync(outputDir, { recursive: true, force: true });
 
-        return NextResponse.json({ error: 'File uploaded and extracted successfully' }, { status: 200 });
+        return NextResponse.json({ message: 'File uploaded and extracted successfully' }, { status: 200 });
     } catch (err) {
         console.error('Error during file processing:', err);
         return NextResponse.json({ error: 'Error processing file' }, { status: 500 });
